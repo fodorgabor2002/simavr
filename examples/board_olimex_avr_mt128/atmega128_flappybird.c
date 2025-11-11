@@ -39,15 +39,9 @@ static int rnd_gen(int max) {
 
 #define BUTTON_NONE     0
 #define BUTTON_CENTER   1
-#define BUTTON_UP       4 // Unused, but kept for consistency
 static int button_accept = 1;
 
 static int button_pressed() {
-    // UP button (PIN A1)
-    if (!(PINA & 0b00000010) && button_accept) { 
-        button_accept = 0; 
-        return BUTTON_UP;
-    }
     // CENTER button (PIN A2)
     if (!(PINA & 0b00000100) && button_accept) { 
         button_accept = 0; 
@@ -58,7 +52,7 @@ static int button_pressed() {
 
 static void button_unlock() {
     // Check if both UP and CENTER buttons are released before re-enabling input
-    if ((PINA & 0b00000010) && (PINA & 0b00000100))
+    if (PINA & 0b00000100)
     button_accept = 1;
 }
 
@@ -118,10 +112,10 @@ static void lcd_init() {
     PORTC = 0b00110000; lcd_pulse(); lcd_delay(1000);
     PORTC = 0b00110000; lcd_pulse(); lcd_delay(1000);
     PORTC = 0b00100000; lcd_pulse();
-    lcd_send_command(0x28); // 4 bits, 2 lines, 5x8 font
-    lcd_send_command(0x08); // display off
+    lcd_send_command(0x28);     // 4 bits, 2 lines, 5x8 font
+    lcd_send_command(0x08);     // display off
     lcd_send_command(CLR_DISP); // clear display
-    lcd_send_command(0x06); // entry mode set
+    lcd_send_command(0x06);     // entry mode set
     lcd_send_command(DISP_ON);
     lcd_send_command(CLR_DISP);
 }
@@ -141,21 +135,21 @@ static void lcd_send_line2(char *str) {
 #define COLS 16
 #define VIRTUAL_ROWS 8
 #define PIPE_GAP_SIZE 3
-static unsigned char pipe_gaps[COLS]; // 9 means no pipe
+static unsigned char pipe_gaps[COLS];   // 9 means no pipe
 
 // Bird State
-#define BIRD_COL 3          // Bird is always drawn at column 3
+#define BIRD_COL 3                      // Bird is always drawn at column 3
 #define BIRD_FALLING 0
 #define BIRD_STABILIZED 1
 #define BIRD_GOING_UP 2
 
-static int bird_vrow;       // Bird's top virtual row (0 to VIRTUAL_ROWS - 2)
+static int bird_vrow;                   // Bird's top virtual row (0 to VIRTUAL_ROWS - 2)
 static int bird_state;
 
 // Timing
-#define PIPE_SHIFT_DELAY 3  // How many loops between column shifts
+#define PIPE_SHIFT_DELAY 3              // How many loops between column shifts
 #define PIPE_SPAWN_COL (COLS - 1) 
-#define BIRD_GRAVITY_DELAY 5 // Bird falls every 5 game loops (0.5s at 100ms loop)
+#define BIRD_GRAVITY_DELAY 5            // Bird falls every 5 game loops (0.5s at 100ms loop)
 
 static void game_init() {
     for (int i = 0; i < COLS; ++i) {
@@ -376,8 +370,7 @@ int main() {
     // Loop for pipe movement demonstration
     while (1) {
         // --- 0. Handle Input & Bird State Change ---
-        int input = button_pressed();
-        if (input == BUTTON_CENTER) {
+        if (button_pressed() == BUTTON_CENTER) {
             // Flap: Always move up one virtual row (if possible) and enter the GOING_UP state
             if (bird_vrow > 0) {
                 bird_vrow--;
