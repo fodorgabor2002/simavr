@@ -375,7 +375,6 @@ int main() {
 
     // Loop for pipe movement demonstration
     while (1) {
-        
         // --- 0. Handle Input & Bird State Change ---
         int input = button_pressed();
         if (input == BUTTON_CENTER) {
