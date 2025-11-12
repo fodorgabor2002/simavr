@@ -1,6 +1,6 @@
 /**
  * Flappy Bird - Mini LCD Game
- * Complete game logic including collision detection, score, and state management.
+ * Complete game logic including velocity-based physics, collision, score, and state management.
  */
 
 #undef F_CPU
@@ -140,16 +140,15 @@ static void lcd_send_line2(char *str) {
 #define PIPE_GAP_SIZE 3
 static unsigned char pipe_gaps[COLS]; // 9 means no pipe
 
-// Bird State
+// Bird Physics Constants
 #define BIRD_COL 3          // Bird is always drawn at column 3
-#define BIRD_FALLING 0      // Bird is accelerating downwards
-#define BIRD_STABILIZED 1   // Bird is hovering (no vertical movement)
-#define BIRD_GOING_UP 2     // Bird is performing the single-step upward flap
+#define GRAVITY 1           // Amount added to velocity per physics tick
+#define FLAP_IMPULSE -2     // Negative velocity applied on button press
 
 static int bird_vrow;       // Bird's top virtual row (0 to VIRTUAL_ROWS - 2, max 6)
-static int bird_state;
+static int bird_velocity;   // Vertical speed (positive = down, negative = up)
 static int score;           // Player score
-static int center_button_event; // NEW: Flag to hold button press until physics tick consumes it
+static int center_button_event; // Flag to hold button press until physics tick consumes it
 
 // Game States
 #define GAME_READY 0
@@ -158,19 +157,19 @@ static int center_button_event; // NEW: Flag to hold button press until physics 
 static int game_state;
 
 // Timing
-#define PIPE_SHIFT_DELAY 5  // How many loops between column shifts (300ms)
+#define PIPE_SHIFT_DELAY 3  
 #define PIPE_SPAWN_COL (COLS - 1) 
-#define BIRD_GRAVITY_DELAY 7 // Bird physics tick every x game loops (x * 0.1s)
+#define BIRD_PHYSICS_DELAY 3 // Synchronized with pipe shift
 
 static void game_init() {
     for (int i = 0; i < COLS; ++i) {
         pipe_gaps[i] = 9; 
     }
-    // Set initial bird position (forth virtual row, index 3) and state
+    // Set initial bird position (forth virtual row, index 3) and initial velocity
     bird_vrow = 3; 
-    bird_state = BIRD_FALLING;
+    bird_velocity = 0;
     score = 0;
-    center_button_event = 0; // Initialize the new event flag
+    center_button_event = 0; 
 }
 
 /**
@@ -440,7 +439,7 @@ int main() {
     game_state = GAME_READY;
     
     int pipe_shift_counter = 0;
-    int gravity_counter = 0;
+    int physics_counter = 0; // Renamed from gravity_counter
 
     // Main Game Loop (State Machine)
     while (1) {
@@ -457,10 +456,10 @@ int main() {
             }
         } else if (game_state == GAME_OVER) {
             if (input == BUTTON_CENTER) {
-                game_init(); // Reset all game data (pipes, bird, score)
+                game_init(); // Reset all game data (pipes, bird, score, velocity)
                 game_state = GAME_RUNNING;
                 pipe_shift_counter = 0; // Reset timers
-                gravity_counter = 0;
+                physics_counter = 0;
                 // Clear the display for the start of the game
                 lcd_send_command(CLR_DISP); 
             }
@@ -480,45 +479,43 @@ int main() {
                 pipe_shift();
             }
             
-            // Bird Gravity/Physics Tick (State Machine Logic)
-            if (++gravity_counter >= BIRD_GRAVITY_DELAY) {
-                gravity_counter = 0;
+            // Bird Physics Tick (Velocity-Based Model)
+            if (++physics_counter >= BIRD_PHYSICS_DELAY) {
+                physics_counter = 0;
                 
                 // Read and immediately consume the persistent event flag
                 int event_happened = center_button_event;
                 center_button_event = 0; 
                 
-                if (bird_state == BIRD_FALLING) {
-                    if (event_happened) {
-                        // Rule 1: FALLING + Button -> STABILIZED (Hover one tick)
-                        bird_state = BIRD_STABILIZED;
-                    } else {
-                        // Default: FALLING + No Button -> Keep falling (Apply gravity)
-                        if (bird_vrow < VIRTUAL_ROWS - 2) { 
-                            bird_vrow++; 
-                        }
-                        // State remains BIRD_FALLING
-                    }
-                } 
-                else if (bird_state == BIRD_STABILIZED) {
-                    if (event_happened) {
-                        // Rule 2: STABILIZED + Button -> GOING_UP (Apply Flap)
-                        if (bird_vrow > 0) {
-                            bird_vrow--; 
-                        }
-                        bird_state = BIRD_GOING_UP;
-                    } else {
-                        // Rule 4: STABILIZED + No Button -> FALLING
-                        bird_state = BIRD_FALLING;
-                    }
-                } 
-                else if (bird_state == BIRD_GOING_UP) {
-                    // Rule 3: GOING_UP -> STABILIZED (Input is irrelevant after the flap)
-                    bird_state = BIRD_STABILIZED;
+                // A. Apply Flap Impulse (Highest Priority)
+                if (event_happened) {
+                    bird_velocity = FLAP_IMPULSE;
+                }
+                
+                // B. Apply Gravity/Acceleration
+                bird_velocity += GRAVITY;
+
+                // C. Update Position
+                // Fix for collision overshoot: Clamp velocity to max +/- 1 Vrow movement per tick 
+                int velocity_clamped = bird_velocity;
+                if (velocity_clamped > 1) velocity_clamped = 1;
+                if (velocity_clamped < -1) velocity_clamped = -1;
+                
+                bird_vrow += velocity_clamped;
+                
+                // D. Clamp Position (handles ceiling/floor collision detection implicitly)
+                if (bird_vrow < 0) {
+                    bird_vrow = 0;
+                    // Reset velocity to prevent bouncing off the ceiling
+                    bird_velocity = 0; 
+                } else if (bird_vrow > VIRTUAL_ROWS - 2) {
+                    bird_vrow = VIRTUAL_ROWS - 2;
+                    // Reset velocity to stop gravity effect when touching the floor
+                    bird_velocity = 0; 
                 }
             }
 
-            // --- 2. Collision Check ---
+            // --- 2. Collision Check (Checks against pipes and floor/ceiling boundaries) ---
             if (check_collision()) {
                 game_state = GAME_OVER;
             }
@@ -528,6 +525,6 @@ int main() {
         screen_update();
         
         // --- 4. Loop Delay (Game Speed) ---
-        _delay_ms(300); 
+        _delay_ms(150); 
     }
 }
