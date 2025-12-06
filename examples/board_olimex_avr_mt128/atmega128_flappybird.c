@@ -1,6 +1,6 @@
 /**
  * Flappy Bird - Mini LCD Game
- * Complete game logic including velocity-based physics, collision, score, and state management.
+ * by Gábor Fodor
  */
 
 #undef F_CPU
@@ -28,8 +28,8 @@ static void port_init() {
 // TIMER-BASED RANDOM NUMBER GENERATOR ---------------------------------------
 
 static void rnd_init() {
-    TCCR0 |= (1 << CS00);   
-    TCNT0 = 0;              
+	TCCR0 |= (1  << CS00);	// Timer 0 no prescaling (@FCPU)
+	TCNT0 = 0; 				// init counter
 }
 
 static int rnd_gen(int max) {
@@ -72,12 +72,11 @@ static void lcd_delay(unsigned int b) {
 }
 
 static void lcd_pulse() {
-    PORTC = PORTC | 0b00000100; // E high
-    lcd_delay(1400);            
-    PORTC = PORTC & 0b11111011; // E low
+	PORTC = PORTC | 0b00000100;	//set E to high
+	lcd_delay(1400); 			//delay ~110ms
+	PORTC = PORTC & 0b11111011;	//set E to low
 }
 
-// Fixed robust 4-bit send function
 static void lcd_send(int command, unsigned char a) {
     unsigned char data;
 
@@ -115,10 +114,10 @@ static void lcd_init() {
     PORTC = 0b00110000; lcd_pulse(); lcd_delay(1000);
     PORTC = 0b00110000; lcd_pulse(); lcd_delay(1000);
     PORTC = 0b00100000; lcd_pulse();
-    lcd_send_command(0x28); // 4 bits, 2 lines, 5x8 font
-    lcd_send_command(0x08); // display off
-    lcd_send_command(CLR_DISP); // clear display
-    lcd_send_command(0x06); // entry mode set
+    lcd_send_command(0x28);         // 4 bits, 2 lines, 5x8 font
+    lcd_send_command(0x08);         // display off
+    lcd_send_command(CLR_DISP);     // clear display
+    lcd_send_command(0x06);         // entry mode set
     lcd_send_command(DISP_ON);
     lcd_send_command(CLR_DISP);
 }
@@ -141,13 +140,13 @@ static void lcd_send_line2(char *str) {
 static unsigned char pipe_gaps[COLS]; // 9 means no pipe
 
 // Bird Physics Constants
-#define BIRD_COL 3          // Bird is always drawn at column 3
-#define GRAVITY 1           // Amount added to velocity per physics tick
-#define FLAP_IMPULSE -2     // Negative velocity applied on button press
+#define BIRD_COL 3              // Bird is always drawn at column 3
+#define GRAVITY 1               // Amount added to velocity per physics tick
+#define FLAP_IMPULSE -2         // Negative velocity applied on button press
 
-static int bird_vrow;       // Bird's top virtual row (0 to VIRTUAL_ROWS - 2, max 6)
-static int bird_velocity;   // Vertical speed (positive = down, negative = up)
-static int score;           // Player score
+static int bird_vrow;           // Bird's top virtual row (0 to VIRTUAL_ROWS - 2, max 6)
+static int bird_velocity;       // Vertical speed (positive = down, negative = up)
+static int score;               // Player score
 static int center_button_event; // Flag to hold button press until physics tick consumes it
 
 // Game States
@@ -159,7 +158,7 @@ static int game_state;
 // Timing
 #define PIPE_SHIFT_DELAY 3  
 #define PIPE_SPAWN_COL (COLS - 1) 
-#define BIRD_PHYSICS_DELAY 3 // Synchronized with pipe shift
+#define BIRD_PHYSICS_DELAY 3    // Synchronized with pipe shift
 
 static void game_init() {
     for (int i = 0; i < COLS; ++i) {
@@ -255,37 +254,86 @@ static int check_collision() {
 
 // CUSTOM CHARACTERS AND RENDERING -------------------------------------------
 
-#define CHAR_SOLID              0
-#define CHAR_TOP_HALF           1
-#define CHAR_BOTTOM_HALF        2
-#define CHAR_BIRD_BOTTOM_PIPE_TOP 3 // bird bottom + full top
-#define CHAR_BIRD_TOP_PIPE_BOTTOM 4 // bird top + full bottom
-#define CHAR_BIRD_TOP_EMPTY_BOTTOM 5 // bird top + empty bottom
-#define CHAR_BIRD_BOTTOM_EMPTY_TOP 6 // bird bottom + empty top
+#define CHAR_SOLID                  0
+#define CHAR_TOP_HALF               1
+#define CHAR_BOTTOM_HALF            2
+#define CHAR_BIRD_BOTTOM_PIPE_TOP   3    // bird bottom + full top
+#define CHAR_BIRD_TOP_PIPE_BOTTOM   4    // bird top + full bottom
+#define CHAR_BIRD_TOP_EMPTY_BOTTOM  5    // bird top + empty bottom
+#define CHAR_BIRD_BOTTOM_EMPTY_TOP  6    // bird bottom + empty top
 
 #define CHARMAP_SIZE            7 
 
 static unsigned char CHARMAP[CHARMAP_SIZE][8] = {
     { // 0: CHAR_SOLID
-        0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111
     },
     { // 1: CHAR_TOP_HALF 
-        0b11111, 0b11111, 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b00000, 
+        0b00000, 
+        0b00000, 
+        0b00000
     },
     { // 2: CHAR_BOTTOM_HALF 
-        0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111, 0b11111, 0b11111
+        0b00000, 
+        0b00000, 
+        0b00000, 
+        0b00000, 
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111
     },
-    { // 3: CHAR_BIRD_BOTTOM_PIPE_TOP (bird bottom + full top)
-        0b11111, 0b11111, 0b11111, 0b11111, 0b00000, 0b01100, 0b01100, 0b00000
+    { // 3: CHAR_BIRD_BOTTOM_PIPE_TOP (Pipe/Body)
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111, // Top half is solid pipe
+        0b00000, 
+        0b11100, 
+        0b01110, 
+        0b00000  // Bottom half has bird body/beak
     },
-    { // 4: CHAR_BIRD_TOP_PIPE_BOTTOM (bird top + full bottom)
-        0b00000, 0b01100, 0b01100, 0b00000, 0b11111, 0b11111, 0b11111, 0b11111
+    { // 4: CHAR_BIRD_TOP_PIPE_BOTTOM (Pipe/Body)
+        0b00000, 
+        0b11100, 
+        0b01110, 
+        0b00000, // Top half has bird body/beak
+        0b11111, 
+        0b11111, 
+        0b11111, 
+        0b11111  // Bottom half is solid pipe
     },
-    { // 5: CHAR_BIRD_TOP_EMPTY_BOTTOM (bird top + empty bottom)
-        0b00000, 0b01100, 0b01100, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000
+    { // 5: CHAR_BIRD_TOP_EMPTY_BOTTOM (Empty/Body)
+        0b00000, 
+        0b11100, 
+        0b01110, 
+        0b00000, // Top half has bird body/beak
+        0b00000, 
+        0b00000, 
+        0b00000, 
+        0b00000  // Bottom half is empty
     },
-    { // 6: CHAR_BIRD_BOTTOM_EMPTY_TOP (bird bottom + empty top)
-        0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100, 0b00000
+    { // 6: CHAR_BIRD_BOTTOM_EMPTY_TOP (Empty/Body)
+        0b00000, 
+        0b00000, 
+        0b00000, 
+        0b00000, // Top half is empty
+        0b00000, 
+        0b11100, 
+        0b01110, 
+        0b00000  // Bottom half has bird body/beak
     }
 };
 
@@ -398,8 +446,8 @@ static void screen_update() {
         lcd_send_line2(line2_buffer);
 
     } else if (game_state == GAME_READY) {
-        lcd_send_line1(" Flappy C Test ");
-        lcd_send_line2(" Press Center   ");
+        lcd_send_line1(" Flappy AVR Ver! ");
+        lcd_send_line2("  Press Center   ");
 
     } else { // GAME_RUNNING
         // Line 1 (vrows 0-3) - Draw game world
@@ -439,7 +487,7 @@ int main() {
     game_state = GAME_READY;
     
     int pipe_shift_counter = 0;
-    int physics_counter = 0; // Renamed from gravity_counter
+    int physics_counter = 0; // Previously gravity_counter
 
     // Main Game Loop (State Machine)
     while (1) {
@@ -487,15 +535,15 @@ int main() {
                 int event_happened = center_button_event;
                 center_button_event = 0; 
                 
-                // A. Apply Flap Impulse (Highest Priority)
+                // Apply Flap Impulse (Highest Priority)
                 if (event_happened) {
                     bird_velocity = FLAP_IMPULSE;
                 }
                 
-                // B. Apply Gravity/Acceleration
+                // Apply Gravity/Acceleration
                 bird_velocity += GRAVITY;
 
-                // C. Update Position
+                // Update Position
                 // Fix for collision overshoot: Clamp velocity to max +/- 1 Vrow movement per tick 
                 int velocity_clamped = bird_velocity;
                 if (velocity_clamped > 1) velocity_clamped = 1;
@@ -503,7 +551,7 @@ int main() {
                 
                 bird_vrow += velocity_clamped;
                 
-                // D. Clamp Position (handles ceiling/floor collision detection implicitly)
+                // Clamp Position (handles ceiling/floor collision detection implicitly)
                 if (bird_vrow < 0) {
                     bird_vrow = 0;
                     // Reset velocity to prevent bouncing off the ceiling
@@ -525,6 +573,6 @@ int main() {
         screen_update();
         
         // --- 4. Loop Delay (Game Speed) ---
-        _delay_ms(150); 
+        _delay_ms(250); 
     }
 }
